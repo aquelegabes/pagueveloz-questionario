@@ -1,0 +1,130 @@
+@page "/empresas"
+@using PagueVeloz.Application.Interfaces;
+@using PagueVeloz.Domain.ViewModels;
+@using PagueVeloz.Application.Services;
+@using Microsoft.Extensions.Configuration;
+@using PagueVeloz.Web.Components;
+@inject NavigationManager NavManager;
+
+<h1>Empresas</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-10"></div>
+        <div class="col-2">
+            <a id="new-fornecedor" class="btn btn-success" href="empresa/novo">
+                <span class="oi oi-plus"></span> Novo
+            </a>
+        </div>
+    </div>
+</div>
+
+<div id="query-filter" class="form-group">
+    <div class="container">
+        <div class="row">
+            <div class="col-5">
+                <label for="query-nome">Nome</label>
+                <input type="text" id="query-nome" class="form-control" @bind=FiltroNomeFantasia/>
+            </div>
+            <div class="col-5">
+                <label for="query-cnpj">CNPJ</label>
+                <input type="text" id="query-cnpj" @bind=FiltroCNPJ class="form-control">
+            </div>
+            <div class="col-2 mt-4">
+                <button type="submit" @onclick="GetFiltered" class="btn btn-success btn-sm">
+                    <span class="oi oi-magnifying-glass"></span> Pesquisar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="table-content">
+    <table class="table table-striped">
+        <thead>
+            <td>Nome</td>
+            <td>CNPJ</td>
+            <td>UF</td>
+            <td>Ações</td>
+        </thead>
+        <tbody>
+            @if (ListEmpresas?.Any() == true)
+            {
+                @foreach (var empresa in ListEmpresas)
+                {
+                    <tr data-id="@empresa.Id">
+                        <td>@empresa.NomeFantasia</td>
+                        <td>@empresa.CNPJ</td>
+                        <td>@empresa.UF</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" type="button" @onclick="() => { DeletingID = empresa.Id; Modal.Toggle(); }">
+                                <span class="oi oi-delete"></span>
+                            </button>
+                            <a href="empresa/details/@empresa.Id" class="btn btn-warning btn-sm">
+                                <span class="oi oi-expand-down"></span>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+<Alert @ref="Alert" Id="alert" Text="@AlertText" />
+<ModalConfirm @ref="Modal" Id="modal-exclusao" DeleteAction="async() => await Delete()" />
+
+@code {
+    [Inject] IAPIService<EmpresaVM> apiEmpresa { get; set; }
+    [Inject] IConfiguration Configuration { get; set; }
+    string EmpresaEndpoint => Configuration["API:Endpoints:Empresa"];
+
+    string AlertText = string.Empty;
+    int DeletingID { get;set; }
+
+    string FiltroNomeFantasia { get;set; }
+    string FiltroCNPJ { get;set; }
+
+    Alert Alert { get; set; }
+    ModalConfirm Modal { get; set; }
+    List<EmpresaVM> ListEmpresas = new List<EmpresaVM>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await apiEmpresa.GetPaginated(
+            EmpresaEndpoint, semFornecedor: false, take: Int32.MaxValue);
+
+        if (response?.Count() > 0)
+            ListEmpresas = response.ToList();
+    }
+
+    async Task GetFiltered(MouseEventArgs e)
+    {
+        var response = await apiEmpresa.GetPaginated(EmpresaEndpoint,
+            cnpj: FiltroCNPJ, nome: FiltroNomeFantasia,
+            semFornecedor: false, take: Int32.MaxValue);
+
+        if (response?.Any() == true)
+            ListEmpresas = response.ToList();
+    }
+
+    async Task Delete()
+    {
+        var response = await apiEmpresa.Delete(EmpresaEndpoint, DeletingID);
+
+        Modal.Toggle();
+
+        if (response)
+        {
+            AlertText = "Excluído com sucesso.";
+            ListEmpresas.Remove(ListEmpresas.First(f => f.Id == DeletingID));
+            StateHasChanged();
+            await Alert.Show(3000);
+        }
+        else {
+            AlertText = "Falha ao excluir.";
+            StateHasChanged();
+            await Alert.Show(3000);
+        }
+    }
+}

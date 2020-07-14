@@ -1,0 +1,47 @@
+<div class="modal @CSSClass" role="dialog" id="@Id" aria-hidden="true" aria-labelledby="modal-title" style="display: @Display;">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-title">Confirmação de exclusão</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" @onclick="Toggle">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Tem certeza que deseja excluir?
+                    Esta ação não pode ser revogada.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" @onclick="DeleteAction">Deletar</button>
+                <button class="btn btn-secondary" type="button" data-dismiss="modal" @onclick="Toggle">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+    [Parameter]
+    public EventCallback<MouseEventArgs> DeleteAction { get; set; }
+
+    private string Display = "none";
+    private string CSSClass = "";
+
+    public void Toggle()
+    {
+        if (Display == "none")
+        {
+            Display = "block;";
+            CSSClass = "Show";
+            StateHasChanged();
+        }
+        else {
+            Display = "none";
+            CSSClass = "";
+            StateHasChanged();
+        }
+    }
+}

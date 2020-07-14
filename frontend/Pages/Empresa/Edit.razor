@@ -1,0 +1,8 @@
+@page "/empresa/details/{empresaId:int}"
+@using PagueVeloz.Web.Components.Empresas;
+
+<FormDetails EmpresaId="@EmpresaId" />
+
+@code {
+    [Parameter] public int EmpresaId { get; set; }
+}

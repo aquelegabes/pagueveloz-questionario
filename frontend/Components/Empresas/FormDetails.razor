@@ -1,0 +1,146 @@
+@using PagueVeloz.Domain.ViewModels;
+@using PagueVeloz.Application.Interfaces;
+@using PagueVeloz.Application.Services;
+@using Microsoft.Extensions.Configuration;
+@using PagueVeloz.Web.Components;
+@using System.Globalization;
+@inject NavigationManager NavManager;
+
+<Alert @ref="Alert" NavManager="NavManager" Id="custom-alert" Text="@AlertText" PathToReturn="/empresas"/>
+<EditForm Model="EmpresaModel" OnValidSubmit="async() => await SaveChanges()">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="container">
+        <div class="row form-group">
+            <div class="col-4">
+                <label for="empresaNome">Nome</label>
+                <InputText class="form-control" @bind-Value="EmpresaModel.NomeFantasia" id="empresaNome" />
+            </div>
+            <div class="col-3">
+                <label for="empresaCnpj">CNPJ</label>
+                <InputText class="form-control" @bind-Value="EmpresaModel.CNPJ" id="empresaCnpj" />
+            </div>
+            <div class="col-5">
+                <label for="empresaUf">UF</label>
+                <InputText class="form-control" @bind-Value="EmpresaModel.UF" id="empresaUf" />
+            </div>
+        </div>
+        @if (FornecedorEmpresa != null && EmpresaId != 0)
+        {
+            <h2>Fornecedores</h2>
+            <table class="table table-striped">
+                <thead>
+                    <td>Nome</td>
+                    <td>CPF/CNPJ</td>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>@FornecedorEmpresa.Nome</td>
+                        <td>@(FornecedorEmpresa.IsPessoaFisica ? FornecedorEmpresa.Pessoa.CPF : FornecedorEmpresa.CNPJ)</td>
+                    </tr>
+                </tbody>
+            </table>
+        }
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-8"></div>
+            <div class="col-2">
+                <a class="btn btn-primary" href="empresas">
+                    Voltar
+                </a>
+            </div>
+            <div class="col-2">
+                <button type="submit" class="btn btn-success">
+                    @(EmpresaId > 0 ? "Atualizar" : "Novo")
+                </button>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    bool IsSent { get; set; } = false;
+    Alert Alert { get; set; }
+    int lastFornecedorId { get; set; }
+    string AlertText = string.Empty;
+
+    [Inject] IConfiguration Configuration { get; set; }
+    [Inject] IAPIService<EmpresaVM> apiEmpresa { get; set; }
+    [Inject] IAPIService<FornecedorVM> apiFornecedor { get; set; }
+
+    [Parameter] public int EmpresaId { get; set; }
+    EmpresaVM EmpresaModel = new EmpresaVM { };
+    List<FornecedorVM> FornecedoresDisp = new List<FornecedorVM>();
+    
+    FornecedorVM FornecedorEmpresa = new FornecedorVM();
+
+    string EmpresaEndpoint => Configuration["API:Endpoints:Empresa"];
+    string FornecedorEndpoint => Configuration["API:Endpoints:Fornecedor"];
+
+    async Task LoadFornecedores()
+    {
+        var response = await apiFornecedor.GetPaginated(FornecedorEndpoint,
+            page: 1, take: Int32.MaxValue);
+
+        if (response?.Count() > 0)
+        {
+            FornecedoresDisp = response.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try 
+        {
+            await LoadFornecedores();
+
+            if (EmpresaId == 0)
+                return;
+
+            var response = await apiEmpresa.GetById(EmpresaEndpoint, EmpresaId);
+
+            if (response != null)
+            {
+                EmpresaModel = response;
+                FornecedorEmpresa = response.Fornecedor;
+            }
+        }
+        catch { NavManager.NavigateTo("/empresa", true); }
+    }
+
+    async Task SaveChanges()
+    {
+        if (IsSent)
+            return;
+        
+        IsSent = true;
+
+        try 
+        {
+            EmpresaVM response;
+            if (EmpresaModel.Id == 0)
+                response = await apiEmpresa.Add(EmpresaEndpoint, EmpresaModel);
+            else
+                response = await apiEmpresa.Update(EmpresaEndpoint, EmpresaModel);
+
+            if (response.Id != 0)
+            {
+                AlertText = "Sucesso ao atualizar os dados. Retornando em 3 segundos.";
+                StateHasChanged();
+                await Alert.Show(3000, true);
+            }
+        }
+        catch (HttpRequestException e) 
+        { 
+            AlertText = "Falha ao atualizar os dados.";
+            StateHasChanged();
+            await Alert.Show(3000);
+        }
+        finally
+        {
+            IsSent = false;
+        }
+    }
+}

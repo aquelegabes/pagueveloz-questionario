@@ -1,0 +1,308 @@
+@using PagueVeloz.Domain.ViewModels;
+@using PagueVeloz.Application.Interfaces;
+@using PagueVeloz.Application.Services;
+@using Microsoft.Extensions.Configuration;
+@using PagueVeloz.Web.Components;
+@inject NavigationManager NavManager;
+@using System.Globalization;
+
+<Alert @ref="Alert" NavManager="NavManager" Id="custom-alert" Text="@AlertText" PathToReturn="/fornecedores" />
+<EditForm Model="@FornecedorModel" OnValidSubmit="async() => await SaveChanges()">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="container">
+        <div class="row form-group">
+            <div class="col-4">
+                <label for="fonecedorNome">Nome</label>
+                <InputText class="form-control" @bind-Value="FornecedorModel.Nome" id="fonecedorNome" />
+            </div>
+            <div class="col-4">
+                @if (FornecedorModel.IsPessoaFisica)
+                {
+                    <label for="fornecedorCpf">CPF</label>
+                    <InputText class="form-control" @bind-Value="FornecedorPessoa.CPF" id="fornecedorCpf" />
+                }
+                else
+                {
+                    <label for="fornecedorCnpj">CNPJ</label>
+                    <InputText class="form-control" @bind-Value="FornecedorModel.CNPJ" id="fornecedorCnpj" />
+                }
+            </div>
+            <div class="col-4">
+                <div class="mt-5">
+                    <InputCheckbox id="fornecedorPessoaFisica" class="form-check-input" @bind-Value="FornecedorModel.IsPessoaFisica" />
+                    <label for="fornecedorPessoaFisica" class="form-check-label">Pessoa Física</label>
+                </div>
+            </div>
+        </div>
+        @if (FornecedorModel.IsPessoaFisica)
+        {
+            <div class="row form-group">
+                <div class="col-5">
+                    <label for="pessoaRG">RG:</label>
+                    <InputText class="form-control" @bind-Value="FornecedorPessoa.RG" id="pessoaRG" />
+                </div>
+                <div class="col-5">
+                    <label for="pessoaNascimento">Data de nascimento:</label>
+                    <InputDate class="form-control" @bind-Value="FornecedorPessoa.Nascimento" id="pessoaNascimento" />
+                </div>
+            </div>
+        }
+        <div class="row form-group">
+            <div class="col-10">
+                <label for="fornecedorFone">Telefone:</label>
+                <InputText class="form-control" @bind-Value="lastFone" id="fornecedorFone" />
+            </div>
+            <div class="col-2">
+                <div class="mt-3">
+                    <button type="button" class="btn button-success btn-sm mt-3" @onclick="AddFone">
+                        <span class="oi oi-plus"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        @if (Empresas?.Count() > 0)
+        {
+            <div class="row form-group">
+                <div class="col-12">
+                    <label for="empresaSelector">Empresa</label>
+
+                    <select class="selectpicker form-control" 
+                            data-live-search="true" 
+                            id="empresaSelector"
+                            @bind="@FornecedorModel.EmpresaId">
+                        @foreach (var empresa in Empresas)
+                        {
+                            <option value="@empresa.Id" data-tokens="@empresa.NomeFantasia">@empresa.CNPJ - @empresa.NomeFantasia</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        }
+        @if (FornecedorEmpresa?.Id != 0)
+        {
+            <h2>Empresa</h2>
+            <div class="row form-group">
+                <div class="col-12">
+                    <table class="table table-striped">
+                        <thead>
+                            <td>Nome</td>
+                            <td>CNPJ</td>
+                            <td>UF</td>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>@FornecedorEmpresa.NomeFantasia</td>
+                                <td>@FornecedorEmpresa.CNPJ</td>
+                                <td>@FornecedorEmpresa.UF</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        @if (FornecedorFones?.Count > 0)
+        {
+            <div class="row form-group">
+                <div class="col-12">
+                    <table class="table table-striped">
+                        <thead>
+                            <td>Numero</td>
+                            <td></td>
+                        </thead>
+                        <tbody>
+                            @foreach (var fone in FornecedorFones)
+                            {
+                                if (!fone.Remove)
+                                {
+                                    <tr>
+                                        <td>@fone.Numero</td>
+                                        <td>
+                                            <button class="btn btn-danger btn-sm" type="button" @onclick="() => RemoveFone(fone.Numero)">
+                                                <span class="oi oi-delete"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-8"></div>
+            <div class="col-2">
+                <a class="btn btn-primary" href="fornecedores">
+                    Voltar
+                </a>
+            </div>
+            <div class="col-2">
+                <button type="submit" class="btn btn-success">
+                    @(FornecedorId > 0 ? "Atualizar" : "Novo")
+                </button>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    bool IsSent { get; set; } = false;
+    Alert Alert { get; set; }
+    string AlertText = string.Empty;
+    string empresaSearch = string.Empty;
+    string lastFone = string.Empty;
+    [Parameter] public int FornecedorId { get; set; }
+
+    EmpresaVM FornecedorEmpresa = new EmpresaVM { };
+    List<FoneVM> FornecedorFones = new List<FoneVM>();
+    PessoaVM FornecedorPessoa = new PessoaVM { };
+    FornecedorVM FornecedorModel = new FornecedorVM { New = true };
+    IEnumerable<EmpresaVM> Empresas { get; set; }
+
+    [Inject] IAPIService<FornecedorVM> apiFornecedor { get; set; }
+
+    [Inject] IAPIService<EmpresaVM> apiEmpresa { get; set; }
+
+    [Inject] IConfiguration Configuration { get; set; }
+
+    string nomeSearch = string.Empty;
+    string EmpresaEndpoint => Configuration["API:Endpoints:Empresa"];
+    string FornecedorEndpoint => Configuration["API:Endpoints:Fornecedor"];
+
+    void RemoveFone(string fone)
+    {
+        var removing = FornecedorFones.First(f => f.Numero.Equals(fone));
+        FornecedorFones.Remove(removing);
+        if (!removing.New)
+        {
+            removing.Remove = true;
+            FornecedorFones.Add(removing);
+        }
+
+        StateHasChanged();
+    }
+
+    void AddFone()
+    {
+        if (!string.IsNullOrWhiteSpace(lastFone))
+        {
+            var fone = new FoneVM
+            {
+                New = true,
+                Numero = lastFone
+            };
+            FornecedorFones.Add(fone);
+            lastFone = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    async Task UpdateEmpresas(KeyboardEventArgs keyboard = null, string nome = "", int includeId = 0)
+    {
+        var response = await apiEmpresa.GetPaginated(EmpresaEndpoint, includeId: includeId, semFornecedor: true, nome: nome);
+        if (response.Count() > 0)
+            Empresas = response;
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        try
+        {
+            if (FornecedorId == 0)
+            {
+                await UpdateEmpresas();
+                return;
+            }
+
+            var response = await apiFornecedor.GetById(FornecedorEndpoint, FornecedorId);
+
+            if (response.EmpresaId != 0)
+            {
+                var emp = await apiEmpresa.GetById(EmpresaEndpoint, response.EmpresaId);
+                if (emp.Id != 0)
+                    FornecedorEmpresa = emp;
+                await UpdateEmpresas(includeId: response.EmpresaId);
+            }
+
+            FornecedorFones = response.Fones.ToList();
+            FornecedorPessoa = response.Pessoa;
+            FornecedorModel = response;
+        }
+        catch { NavManager.NavigateTo("/fornecedores", true); }
+    }
+
+    async Task SaveChanges()
+    {
+        if (IsSent)
+            return;
+        
+        IsSent = true;
+
+        if (FornecedorModel.IsPessoaFisica) 
+        {
+            FornecedorModel.CNPJ = string.Empty;
+            FornecedorModel.Pessoa = FornecedorPessoa;
+        }
+        else {
+            FornecedorModel.Pessoa = new PessoaVM();
+        }
+        if (FornecedorFones?.Count() > 0)
+            FornecedorModel.Fones = FornecedorFones;
+
+        FornecedorVM response;
+    
+        if (FornecedorModel.EmpresaId == 0)
+        {
+            IsSent = false;
+            AlertText = "Necessário escolher a empresa.";
+            StateHasChanged();
+            await Alert.Show(3000);
+            return;
+        }
+
+        EmpresaVM emp = Empresas.First(f => f.Id == FornecedorModel.EmpresaId);
+
+        CompareOptions cOpts = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
+
+        if (FornecedorModel.IsPessoaFisica &&
+            string.Compare(emp.UF, "parana", CultureInfo.CurrentCulture, cOpts) == 0 &&
+            FornecedorModel.Pessoa.GetIdade() < 18
+        )
+        {
+            IsSent = false;
+            AlertText = "Para empresas do Paraná fornecedor precisa ser maior de idade.";
+            StateHasChanged();
+            await Alert.Show(3000);
+            return;
+        }
+
+        try
+        {
+            if (FornecedorModel.Id != 0)
+                response = await apiFornecedor.Update(FornecedorEndpoint, FornecedorModel);
+            else
+                response = await apiFornecedor.Add(FornecedorEndpoint, FornecedorModel);
+
+            if (response.Id != 0)
+            {
+                AlertText = "Sucesso ao atualizar os dados. Retornando em 3 segundos.";
+                StateHasChanged();
+                await Alert.Show(3000, true);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertText = "Falha ao atualizar os dados.";
+            StateHasChanged();
+            await Alert.Show(3000);
+        }
+        finally
+        {
+            IsSent = false;
+        }
+    }
+}

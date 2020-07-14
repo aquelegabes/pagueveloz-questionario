@@ -1,0 +1,149 @@
+@page "/fornecedores"
+@using PagueVeloz.Application.Interfaces;
+@using PagueVeloz.Domain.ViewModels;
+@using PagueVeloz.Application.Services;
+@using Microsoft.Extensions.Configuration;
+@using PagueVeloz.Web.Components;
+@inject NavigationManager NavManager;
+
+<h1>Fornecedores</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-10"></div>
+        <div class="col-2">
+            <a id="new-fornecedor" class="btn btn-success" href="fornecedor/novo">
+                <span class="oi oi-plus"></span> Novo
+            </a>
+        </div>
+    </div>
+</div>
+
+<div id="query-filter" class="form-group">
+    <div class="container">
+        <div class="row">
+            <div class="col-5">
+                <label for="query-nome">Nome</label>
+                <input type="text" id="query-nome" class="form-control" @bind=Nome/>
+            </div>
+            <div class="col-5">
+                <label for="query-cnpj">CNPJ</label>
+                <input type="text" id="query-cnpj" @bind=CNPJ class="form-control">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-5">
+                <label for="query-cpf">CPF</label>
+                <input type="text" id="query-cpf" @bind=CPF class="form-control">
+            </div>
+            <div class="col-5">
+                <label for="query-data-cadastro">Data Cadastro</label>
+                <input type="date" id="query-data-cadastro" @bind=DataCadastro class="form-control">
+            </div>
+            <button type="submit" @onclick="GetFiltered" class="btn btn-success btn-sm">
+                <span class="oi oi-magnifying-glass"></span> Pesquisar
+            </button>
+        </div>
+    </div>
+</div>
+<div id="table-content">
+    <table class="table table-striped">
+        <thead>
+            <td>Nome</td>
+            <td>CNPJ/CPF</td>
+            <td>Data Cadastro</td>
+            <td>Ações</td>
+        </thead>
+            @if (ListFornecedores?.Any() == true)
+            {
+                @foreach (var fornecedor in ListFornecedores)
+                {
+                    <tr data-id="@fornecedor.Id">
+                        <td>@fornecedor.Nome</td>
+                        @if (fornecedor.IsPessoaFisica)
+                        {
+                            <td>@fornecedor.Pessoa.CPF</td>
+                        }
+                        else
+                        {
+                            <td>@fornecedor.CNPJ</td>
+                        }
+                        <td>@fornecedor.CreatedAt.Date.ToShortDateString()</td>
+                        <td>
+                            <button aria-describedby="Excluir" class="btn btn-sm btn-danger" data-toggle="modal" data-target="#modal-exclusao" @onclick="() => { DeletingID = fornecedor.Id; Modal.Toggle(); }">
+                                <span class="oi oi-delete"></span>
+                            </button>
+                            <a href="fornecedor/details/@fornecedor.Id" class="btn btn-warning btn-sm">
+                                <span class="oi oi-expand-down"></span>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            }
+        <tbody>
+
+        </tbody>
+    </table>
+</div>
+
+<Alert @ref="Alert" Id="alert" Text="@AlertText" />
+<ModalConfirm @ref="Modal" Id="modal-exclusao" DeleteAction="async() => await Delete()" />
+
+@code {
+    private ModalConfirm Modal { get; set; }
+    private Alert Alert { get; set; }
+    string AlertText = string.Empty;
+    private string CPF { get; set; }
+    private string CNPJ { get; set; }
+    private string Nome { get; set; }
+    private DateTime DataCadastro { get; set; }
+    private string FornecedorEndpoint => Configuration["API:Endpoints:Fornecedor"];
+
+    private int DeletingID { get; set; }
+
+    [Inject] private IAPIService<FornecedorVM> apiFornecedores { get; set; }
+
+    [Inject] private IConfiguration Configuration { get; set; }
+
+    private List<FornecedorVM> ListFornecedores { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await apiFornecedores.GetPaginated(
+            FornecedorEndpoint, take: 100);
+
+        if (response?.Count() > 0)
+            ListFornecedores = response.ToList();
+    }
+
+    private async Task GetFiltered(MouseEventArgs e)
+    {
+        var response = await apiFornecedores.GetPaginated(
+            FornecedorEndpoint,
+            CPF, CNPJ, Nome, DataCadastro, 1, 100
+        );
+
+        ListFornecedores = response.ToList();
+    }
+
+    public async Task Delete()
+    {
+        var response = await apiFornecedores.Delete(
+            endpoint: FornecedorEndpoint, id: DeletingID);
+            
+        Modal.Toggle();
+
+        if (response)
+        {
+            AlertText = "Excluído com sucesso.";
+            ListFornecedores.Remove(ListFornecedores.First(f => f.Id == DeletingID));
+            StateHasChanged();
+            await Alert.Show(3000);
+        }
+        else {
+            AlertText = "Falha ao excluir.";
+            StateHasChanged();
+            await Alert.Show(3000);
+        }
+    }
+}

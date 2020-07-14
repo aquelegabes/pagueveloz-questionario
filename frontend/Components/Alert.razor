@@ -1,0 +1,31 @@
+<div class="alert fade @alertCss @show" role="alert" id="@Id" style="display:@display">
+    <p>
+        @Text
+    </p>
+</div>
+
+@code {
+    private string show = "";
+    private string display = "none";
+
+    private string alertCss => string.IsNullOrWhiteSpace(CSS) ? "alert-primary" : CSS;
+    [Parameter] public string PathToReturn { get; set; }
+    [Parameter] public string CSS { get; set; }
+    [Parameter] public string Text { get; set; }
+    [Parameter] public string Id { get; set; }
+    [Parameter] public NavigationManager NavManager { get; set; }
+
+    public async Task Show(int ms, bool goBack = false)
+    {
+        show = "show";
+        display = "block";
+        StateHasChanged();
+        await Task.Delay(ms);
+        show = "";
+        display = "none";
+        StateHasChanged();
+        
+        if (goBack)
+            NavManager.NavigateTo(PathToReturn, true);
+    }
+}
